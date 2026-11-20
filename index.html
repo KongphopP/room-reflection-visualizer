@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Room Reflection Visualizer</title>
+<style>
+  :root {
+    --bg: #1a1d23;
+    --surface: #22262f;
+    --surface2: #2a2f3b;
+    --border: #3a3f4e;
+    --accent: #4f8ef7;
+    --accent2: #34c97b;
+    --text: #e8ecf4;
+    --text-muted: #8892a4;
+    --src1: #5ba4ff;
+    --src2: #3dda82;
+    --receiver: #ff5e6a;
+    --reflect: #ff9d3d;
+    --grid: #2f3545;
+    --room-border: #5a6275;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text);
+  }
+  header p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  /* Layout */
+  .main-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* Canvas section */
+  .canvas-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Controls + info row below canvases */
+  .bottom-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  /* 3 control boxes stretch to match canvas width */
+  .controls-group {
+    flex: 1 1 0;
+    display: flex;
+    gap: 10px;
+  }
+  .controls-group .card {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* Single combined box for both views */
+  .canvases-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    overflow: hidden;
+  }
+  .canvases-box-title {
+    display: none;
+  }
+  .canvases-row {
+    display: flex;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+  }
+  .canvas-wrap {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .canvas-wrap + .canvas-wrap {
+    border-left: 1px solid var(--border);
+  }
+  .canvas-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 6px 0 5px 0;
+    text-align: center;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0;
+    cursor: crosshair;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .leg-line { width: 20px; height: 2px; flex-shrink: 0; }
+  .leg-x {
+    width: 10px; height: 10px; flex-shrink: 0;
+    position: relative;
+  }
+  .leg-x::before, .leg-x::after {
+    content:''; position: absolute;
+    width: 12px; height: 2px;
+    background: var(--reflect);
+    top: 4px; left: -1px;
+  }
+  .leg-x::before { transform: rotate(45deg); }
+  .leg-x::after  { transform: rotate(-45deg); }
+
+  /* Info panel */
+  .info-panel {
+    flex: 0 0 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  /* Control rows */
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .ctrl-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    min-width: 72px;
+  }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  input[type="number"] {
+    width: 62px;
+    padding: 4px 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type="number"]:focus { border-color: var(--accent); }
+
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .input-group .field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary   { background: var(--accent);  color: #fff; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Dolby preset buttons */
+  .preset-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-preset {
+    flex: 1 1 0;
+    padding: 8px 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    line-height: 1.3;
+  }
+  .btn-preset:hover  { background: var(--accent); border-color: var(--accent); color: #fff; transform: translateY(-1px); }
+  .btn-preset:active { transform: translateY(0); }
+  .btn-preset.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-preset .angle { display: block; font-size: 9px; font-weight: 400; opacity: 0.75; margin-top: 2px; }
+
+  /* Info table */
+  #infoTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  #infoTable thead th {
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 0 4px 6px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  #infoTable tbody tr { border-bottom: 1px solid var(--border); }
+  #infoTable tbody tr:last-child { border-bottom: none; }
+  #infoTable tbody td {
+    padding: 5px 4px;
+    color: var(--text);
+  }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .badge-s1 { background: rgba(91,164,255,0.2); color: var(--src1); }
+  .badge-s2 { background: rgba(61,218,130,0.2); color: var(--src2); }
+
+  /* Hint */
+  .hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 6px;
+    background: var(--surface2);
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Room Reflection Visualizer</h1>
+  <p>Drag Speaker 1 on the Top View • Adjust controls to change room and speaker position</p>
+</header>
+
+<div class="main-layout">
+
+  <!-- Top: canvases + legend -->
+  <div class="canvas-section">
+    <div class="canvases-box">
+      <div class="canvases-box-title">Room Views</div>
+      <div class="canvases-row">
+        <div class="canvas-wrap">
+          <div class="canvas-title">Top View — X / Y</div>
+          <canvas id="topCanvas" width="500" height="420"></canvas>
+        </div>
+        <div class="canvas-wrap">
+          <div class="canvas-title">Side View — Y / Z</div>
+          <canvas id="sideCanvas" width="500" height="420"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-dot" style="background:var(--src1)"></div> Speaker 1</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--src2)"></div> Speaker 2</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--receiver)"></div> Receiver</div>
+      <div class="legend-item"><div class="leg-line" style="background:#aaa"></div> Direct</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--src1)"></div> Spk1 refl.</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--src2)"></div> Spk2 refl.</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--receiver)"></div> → Recv</div>
+      <div class="legend-item"><div class="leg-x"></div> Refl. point</div>
+    </div>
+  </div>
+
+  <!-- Dolby Speaker Presets -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:10px;">
+      Dolby Speaker Presets
+      <span style="font-size:10px;font-weight:400;color:var(--text-muted);margin-left:6px;">— sets Speaker 1 position (Speaker 2 auto-mirrors). ITU/Dolby standard angles from listener.</span>
+    </div>
+    <div class="preset-row">
+      <button class="btn-preset" onclick="applyPreset(30,  'lr')"       id="preset-lr">
+        Front L/R
+        <span class="angle">±30°</span>
+      </button>
+      <button class="btn-preset" onclick="applyPreset(60,  'lw')"       id="preset-lw">
+        Wide LW/RW
+        <span class="angle">±60°</span>
+      </button>
+      <button class="btn-preset" onclick="applyPreset(110, 'surround')" id="preset-surround">
+        Surround
+        <span class="angle">±110°</span>
+      </button>
+      <button class="btn-preset" onclick="applyPreset(150, 'bs')"       id="preset-bs">
+        Back Surround
+        <span class="angle">±150°</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 3 equal control boxes matching canvas width -->
+  <div class="controls-group">
+
+    <!-- Receiver -->
+    <div class="card">
+      <div class="card-title">Receiver</div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Y pos</span>
+        <input type="range" id="sliderY" step="0.01" style="min-width:0;flex:1;">
+        <input type="number" id="inputY" step="0.01" style="width:54px">
+      </div>
+      <div class="hint" style="font-size:10px">X = W/2, Z = 1.2 m</div>
+    </div>
+
+    <!-- Source 1 -->
+    <div class="card">
+      <div class="card-title">Speaker 1 <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(Spk 2 mirrored X)</span></div>
+      <div class="input-group">
+        <div class="field"><span>X</span><input type="number" id="inputSrcX" step="0.01" style="width:56px"></div>
+        <div class="field"><span>Y</span><input type="number" id="inputSrcY" step="0.01" style="width:56px"></div>
+        <div class="field"><span>Z</span><input type="number" id="inputSrcZ" step="0.01" style="width:56px"></div>
+      </div>
+      <div class="hint">Drag <span style="color:var(--src1)">▼ Spk 1</span> on Top View</div>
+    </div>
+
+    <!-- Room Dimensions -->
+    <div class="card">
+      <div class="card-title">Room Dimensions</div>
+      <div class="input-group">
+        <div class="field"><span>W</span><input type="number" id="inputW" step="0.1" min="0.5" style="width:56px"></div>
+        <div class="field"><span>D</span><input type="number" id="inputD" step="0.1" min="0.5" style="width:56px"></div>
+        <div class="field"><span>H</span><input type="number" id="inputH" step="0.1" min="0.5" style="width:56px"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn btn-primary" id="applyRoom">Apply</button>
+        <button class="btn btn-secondary" id="resetBtn">Reset All</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Reflection Info table below the 3 boxes -->
+  <div class="card">
+    <div class="card-title">Reflection Info (c = 343 m/s)</div>
+    <table id="infoTable">
+      <thead>
+        <tr>
+          <th>Src</th>
+          <th>Wall</th>
+          <th>Dist (m)</th>
+          <th>Delay (ms)</th>
+        </tr>
+      </thead>
+      <tbody id="infoBody">
+        <tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:8px">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const C_SOUND = 343; // m/s
+
+// ── State ──────────────────────────────────────────────────────────────────
+let W = 3.0, D = 5.0, H = 3.0;
+const DEF = { W: 3.0, D: 5.0, H: 3.0, z: 1.5, srcXY: [3/4, 0.0], recY: 5*0.7 };
+
+let source1_xy = [...DEF.srcXY];
+let source1_z = DEF.z, source2_z = DEF.z;
+let receiverY = DEF.recY;
+
+// ── Physics ────────────────────────────────────────────────────────────────
+function getSources() {
+  const [x1, y1] = source1_xy;
+  return [
+    [x1, y1, source1_z],
+    [W - x1, y1, source2_z]
+  ];
+}
+function getReceiver(y) { return [W / 2, y, 1.2]; }
+
+function mirrorSource([x, y, z], wall) {
+  switch (wall) {
+    case 'x0': return [-x,      y,      z     ];
+    case 'x1': return [2*W-x,   y,      z     ];
+    case 'y0': return [x,      -y,      z     ];
+    case 'y1': return [x,    2*D-y,     z     ];
+    case 'z0': return [x,       y,     -z     ];
+    case 'z1': return [x,       y,   2*H-z   ];
+  }
+}
+
+function intersectionPoint(imgSrc, rec, wall) {
+  const dim = 'xyz'.indexOf(wall[0]);
+  const wallPos = wall[1] === '1' ? [W, D, H][dim] : 0;
+  const denom = rec[dim] - imgSrc[dim];
+  if (Math.abs(denom) < 1e-10) return null;
+  const t = (wallPos - imgSrc[dim]) / denom;
+  if (t < 0 || t > 1) return null;
+  const pt = imgSrc.map((v, i) => v + t * (rec[i] - v));
+  const bounds = [W, D, H];
+  for (let i = 0; i < 3; i++) {
+    if (i !== dim && (pt[i] < -1e-9 || pt[i] > bounds[i] + 1e-9)) return null;
+  }
+  return pt;
+}
+
+function dist3(a, b) {
+  return Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0));
+}
+
+const WALLS = ['x0','x1','y0','y1','z0','z1'];
+
+// ── Canvas setup ───────────────────────────────────────────────────────────
+const topC  = document.getElementById('topCanvas');
+const sideC = document.getElementById('sideCanvas');
+const ctxT  = topC.getContext('2d');
+const ctxS  = sideC.getContext('2d');
+
+// HiDPI
+function setDPI(canvas, scale) {
+  const w = canvas.width, h = canvas.height;
+  canvas.width  = w * scale;
+  canvas.height = h * scale;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.getContext('2d').scale(scale, scale);
+}
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+setDPI(topC,  DPR);
+setDPI(sideC, DPR);
+const CW = 500, CH = 420;
+
+// Padding
+const PAD = { left: 46, right: 18, top: 24, bottom: 38 };
+
+// ── Coordinate transform ───────────────────────────────────────────────────
+function toCanvas(wx, wy, wW, wH) {
+  const drawW = CW - PAD.left - PAD.right;
+  const drawH = CH - PAD.top  - PAD.bottom;
+  const scaleX = drawW / wW;
+  const scaleY = drawH / wH;
+  const scale  = Math.min(scaleX, scaleY);
+  const ox = PAD.left + (drawW - wW * scale) / 2;
+  const oy = PAD.top  + (drawH - wH * scale) / 2;
+  return [ox + wx * scale, oy + (wH - wy) * scale, scale, ox, oy];
+}
+
+function fromCanvas(px, py, wW, wH) {
+  const [,, scale, ox, oy] = toCanvas(0, 0, wW, wH);
+  return [(px - ox) / scale, wH - (py - oy) / scale];
+}
+
+// ── Drawing helpers ────────────────────────────────────────────────────────
+const COLORS = {
+  src1: '#5ba4ff', src2: '#3dda82',
+  receiver: '#ff5e6a', reflect: '#ff9d3d',
+  room: '#5a6275', grid: '#2f3545',
+  direct: '#c0c8d8', text: '#c0c8d8', bg: '#22262f'
+};
+
+function drawAxes(ctx, wW, wH, xLabel, yLabel) {
+  const [x0, y0] = toCanvas(0, 0, wW, wH);
+  const [xW, yH] = toCanvas(wW, wH, wW, wH);
+
+  // Background
+  ctx.fillStyle = '#1e222a';
+  ctx.fillRect(x0, yH, xW - x0, y0 - yH);
+
+  // Grid
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 0.5;
+  ctx.setLineDash([]);
+  for (let v = 0; v <= wW; v++) {
+    const [cx] = toCanvas(v, 0, wW, wH);
+    ctx.beginPath(); ctx.moveTo(cx, yH); ctx.lineTo(cx, y0); ctx.stroke();
+  }
+  for (let v = 0; v <= wH; v++) {
+    const [, cy] = toCanvas(0, v, wW, wH);
+    ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(xW, cy); ctx.stroke();
+  }
+
+  // Room border
+  ctx.strokeStyle = COLORS.room;
+  ctx.lineWidth = 1.8;
+  ctx.strokeRect(x0, yH, xW - x0, y0 - yH);
+
+  // Ticks
+  ctx.fillStyle = COLORS.text;
+  ctx.font = `${10 * 1}px Arial`;
+  ctx.textAlign = 'center';
+  for (let v = 0; v <= wW; v++) {
+    const [cx] = toCanvas(v, 0, wW, wH);
+    ctx.fillText(v, cx, y0 + 15);
+  }
+  ctx.textAlign = 'right';
+  for (let v = 0; v <= wH; v++) {
+    const [, cy] = toCanvas(0, v, wW, wH);
+    ctx.fillText(v, x0 - 5, cy + 4);
+  }
+
+  // Axis labels
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = COLORS.text;
+  ctx.fillText(xLabel, (x0 + xW) / 2, CH - 6);
+  ctx.save();
+  ctx.translate(13, (y0 + yH) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(yLabel, 0, 0);
+  ctx.restore();
+}
+
+function line(ctx, x1, y1, x2, y2, wW, wH, color, dash, lw) {
+  const [cx1, cy1] = toCanvas(x1, y1, wW, wH);
+  const [cx2, cy2] = toCanvas(x2, y2, wW, wH);
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = lw || 1.2;
+  ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(cx1, cy1); ctx.lineTo(cx2, cy2); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function dot(ctx, x, y, wW, wH, color, r, glow) {
+  const [cx, cy] = toCanvas(x, y, wW, wH);
+  if (glow) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3.5);
+    g.addColorStop(0,   color + '66');
+    g.addColorStop(1,   color + '00');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function xMark(ctx, x, y, wW, wH, color) {
+  const [cx, cy] = toCanvas(x, y, wW, wH);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  const s = 5;
+  ctx.beginPath(); ctx.moveTo(cx-s, cy-s); ctx.lineTo(cx+s, cy+s); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+s, cy-s); ctx.lineTo(cx-s, cy+s); ctx.stroke();
+  // circle
+  ctx.strokeStyle = color + '77';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.stroke();
+}
+
+function triangle(ctx, x, y, wW, wH, color, dir) {
+  const [cx, cy] = toCanvas(x, y, wW, wH);
+  const s = 8;
+  ctx.fillStyle = color;
+  // glow
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 2.5);
+  g.addColorStop(0, color + '55'); g.addColorStop(1, color + '00');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, s * 2.5, 0, Math.PI * 2); ctx.fill();
+  // shape
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (dir === 'down') {
+    ctx.moveTo(cx, cy + s); ctx.lineTo(cx - s, cy - s); ctx.lineTo(cx + s, cy - s);
+  } else {
+    ctx.moveTo(cx - s, cy); ctx.lineTo(cx + s, cy - s); ctx.lineTo(cx + s, cy + s);
+  }
+  ctx.closePath(); ctx.fill();
+}
+
+function label(ctx, text, x, y, wW, wH, color) {
+  const [cx, cy] = toCanvas(x, y, wW, wH);
+  ctx.fillStyle   = color || COLORS.text;
+  ctx.font        = '10px Arial';
+  ctx.textAlign   = 'left';
+  ctx.fillText(text, cx + 8, cy - 2);
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  ctxT.clearRect(0, 0, topC.width,  topC.height);
+  ctxS.clearRect(0, 0, sideC.width, sideC.height);
+
+  drawAxes(ctxT, W, D, 'Width X [m]',  'Depth Y [m]');
+  drawAxes(ctxS, D, H, 'Depth Y [m]',  'Height Z [m]');
+
+  const receiver = getReceiver(receiverY);
+  const sources  = getSources();
+  const srcColors = [COLORS.src1, COLORS.src2];
+  const reflData  = [];
+
+  sources.forEach((src, idx) => {
+    const col = srcColors[idx];
+
+    // Direct path
+    const dDirect = dist3(src, receiver);
+    line(ctxT, src[0], src[1], receiver[0], receiver[1], W, D, COLORS.direct, [6, 4], 1);
+    line(ctxS, src[1], src[2], receiver[1], receiver[2], D, H, COLORS.direct, [6, 4], 1);
+
+    // Reflections
+    WALLS.forEach(wall => {
+      const img = mirrorSource(src, wall);
+      const refl = intersectionPoint(img, receiver, wall);
+      if (!refl) return;
+
+      const d = dist3(src, refl) + dist3(refl, receiver);
+
+      line(ctxT, src[0], src[1],   refl[0], refl[1],     W, D, col,            [4,3], 1.2);
+      line(ctxT, refl[0], refl[1], receiver[0], receiver[1], W, D, COLORS.receiver, [4,3], 1.2);
+      line(ctxS, src[1], src[2],   refl[1], refl[2],     D, H, col,            [4,3], 1.2);
+      line(ctxS, refl[1], refl[2], receiver[1], receiver[2], D, H, COLORS.receiver, [4,3], 1.2);
+
+      xMark(ctxT, refl[0], refl[1], W, D, COLORS.reflect);
+      xMark(ctxS, refl[1], refl[2], D, H, COLORS.reflect);
+
+      if (wall.startsWith('x')) label(ctxT, refl[1].toFixed(2), refl[0], refl[1], W, D);
+      if (wall === 'y1')         label(ctxT, refl[0].toFixed(2), refl[0], refl[1], W, D);
+      if (wall.startsWith('z')) label(ctxS, refl[1].toFixed(2), refl[1], refl[2], D, H);
+
+      reflData.push({ src: idx + 1, wall, d, delay: (d / C_SOUND) * 1000 });
+    });
+
+    // Source (on top of paths)
+    triangle(ctxT, src[0], src[1], W, D, col, 'down');
+    triangle(ctxS, src[1], src[2], D, H, col, 'left');
+  });
+
+  // Receiver (on top)
+  dot(ctxT, receiver[0], receiver[1], W, D, COLORS.receiver, 6, true);
+  dot(ctxS, receiver[1], receiver[2], D, H, COLORS.receiver, 6, true);
+
+  updateInfoTable(reflData, sources, receiver);
+}
+
+// ── Info table ─────────────────────────────────────────────────────────────
+function updateInfoTable(reflData, sources, receiver) {
+  reflData.sort((a, b) => a.d - b.d);
+  const tbody = document.getElementById('infoBody');
+  if (!reflData.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:8px">No reflections</td></tr>';
+    return;
+  }
+  tbody.innerHTML = reflData.map(r => `
+    <tr>
+      <td><span class="badge badge-s${r.src}">Spk${r.src}</span></td>
+      <td style="font-family:monospace">${r.wall}</td>
+      <td>${r.d.toFixed(2)}</td>
+      <td>${r.delay.toFixed(1)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+const sliderY   = document.getElementById('sliderY');
+const inputY    = document.getElementById('inputY');
+const inputSrcX = document.getElementById('inputSrcX');
+const inputSrcY = document.getElementById('inputSrcY');
+const inputSrcZ = document.getElementById('inputSrcZ');
+const inputW    = document.getElementById('inputW');
+const inputD    = document.getElementById('inputD');
+const inputH    = document.getElementById('inputH');
+
+function syncUI() {
+  sliderY.min = 0.5; sliderY.max = (D - 0.5).toFixed(2); sliderY.step = 0.01;
+  sliderY.value   = receiverY.toFixed(2);
+  inputY.value    = receiverY.toFixed(2);
+  inputSrcX.value = source1_xy[0].toFixed(2);
+  inputSrcY.value = source1_xy[1].toFixed(2);
+  inputSrcZ.value = source1_z.toFixed(2);
+  inputW.value    = W.toFixed(2);
+  inputD.value    = D.toFixed(2);
+  inputH.value    = H.toFixed(2);
+}
+
+// ── Dolby Presets ──────────────────────────────────────────────────────────
+// Places Speaker 1 by casting a ray from the listener at the given angle
+// (0° = front wall, 90° = left side, 180° = back wall).
+// Speaker lands 0.3 m inset from the wall it hits.
+function applyPreset(angleDeg, id) {
+  const theta = angleDeg * Math.PI / 180;
+  const lx = W / 2, ly = receiverY;
+
+  if (id === 'lr') {
+    // Front L/R always placed on the front wall (Y = 0)
+    // X is determined by the 30° angle from the listener
+    const xOffset = ly * Math.tan(theta);
+    source1_xy[0] = Math.max(0, Math.min(W / 2, lx - xOffset));
+    source1_xy[1] = 0;
+  } else {
+    // All other presets: cast ray from listener to nearest wall
+    const dx = -Math.sin(theta);
+    const dy = -Math.cos(theta);
+
+    let tMin = Infinity;
+    if (Math.abs(dx) > 1e-9) {
+      if (dx < 0) tMin = Math.min(tMin, (0 - lx) / dx);
+      else        tMin = Math.min(tMin, (W - lx) / dx);
+    }
+    if (Math.abs(dy) > 1e-9) {
+      if (dy < 0) tMin = Math.min(tMin, (0 - ly) / dy);
+      else        tMin = Math.min(tMin, (D - ly) / dy);
+    }
+
+    source1_xy[0] = Math.max(0, Math.min(W, lx + dx * tMin));
+    source1_xy[1] = Math.max(0, Math.min(D, ly + dy * tMin));
+  }
+
+  // Highlight active preset button
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+  document.getElementById('preset-' + id)?.classList.add('active');
+
+  syncUI();
+  render();
+}
+
+sliderY.addEventListener('input', () => {
+  receiverY = parseFloat(sliderY.value);
+  inputY.value = receiverY.toFixed(2);
+  render();
+});
+inputY.addEventListener('change', () => {
+  const v = parseFloat(inputY.value);
+  if (!isNaN(v) && v >= 0.5 && v <= D - 0.5) { receiverY = v; sliderY.value = v; render(); }
+});
+function clearPreset() {
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+}
+
+inputSrcX.addEventListener('change', () => {
+  const v = parseFloat(inputSrcX.value);
+  if (!isNaN(v) && v >= 0 && v <= W) { source1_xy[0] = v; clearPreset(); render(); }
+});
+inputSrcY.addEventListener('change', () => {
+  const v = parseFloat(inputSrcY.value);
+  if (!isNaN(v) && v >= 0 && v <= D) { source1_xy[1] = v; clearPreset(); render(); }
+});
+inputSrcZ.addEventListener('change', () => {
+  const v = parseFloat(inputSrcZ.value);
+  if (!isNaN(v) && v >= 0 && v <= H) { source1_z = v; source2_z = v; render(); }
+});
+
+document.getElementById('applyRoom').addEventListener('click', () => {
+  const nW = parseFloat(inputW.value), nD = parseFloat(inputD.value), nH = parseFloat(inputH.value);
+  if (nW > 0 && nD > 0 && nH > 0) {
+    W = nW; D = nD; H = nH;
+    source1_xy[0] = Math.min(source1_xy[0], W);
+    source1_xy[1] = Math.min(source1_xy[1], D);
+    receiverY = Math.min(receiverY, D - 0.5);
+    syncUI(); render();
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  W = DEF.W; D = DEF.D; H = DEF.H;
+  source1_xy = [W / 4, 0.0];
+  source1_z = DEF.z; source2_z = DEF.z;
+  receiverY = D * 0.7;
+  syncUI(); render();
+});
+
+// ── Mouse drag ─────────────────────────────────────────────────────────────
+let dragging = false;
+
+function getWorldPos(e) {
+  const rect = topC.getBoundingClientRect();
+  const px = (e.clientX - rect.left) * (CW / rect.width);
+  const py = (e.clientY - rect.top)  * (CH / rect.height);
+  return fromCanvas(px, py, W, D);
+}
+
+topC.addEventListener('mousedown', e => {
+  const [wx, wy] = getWorldPos(e);
+  const dx = wx - source1_xy[0], dy = wy - source1_xy[1];
+  if (Math.sqrt(dx*dx + dy*dy) < 0.3) dragging = true;
+});
+topC.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  let [wx, wy] = getWorldPos(e);
+  source1_xy[0] = Math.max(0, Math.min(W, wx));
+  source1_xy[1] = Math.max(0, Math.min(D, wy));
+  inputSrcX.value = source1_xy[0].toFixed(2);
+  inputSrcY.value = source1_xy[1].toFixed(2);
+  clearPreset();
+  render();
+});
+topC.addEventListener('mouseup',    () => { dragging = false; });
+topC.addEventListener('mouseleave', () => { dragging = false; });
+
+// Touch
+topC.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const [wx, wy] = getWorldPos(t);
+  const dx = wx - source1_xy[0], dy = wy - source1_xy[1];
+  if (Math.sqrt(dx*dx + dy*dy) < 0.35) dragging = true;
+}, { passive: false });
+topC.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!dragging) return;
+  const t = e.touches[0];
+  let [wx, wy] = getWorldPos(t);
+  source1_xy[0] = Math.max(0, Math.min(W, wx));
+  source1_xy[1] = Math.max(0, Math.min(D, wy));
+  inputSrcX.value = source1_xy[0].toFixed(2);
+  inputSrcY.value = source1_xy[1].toFixed(2);
+  clearPreset();
+  render();
+}, { passive: false });
+topC.addEventListener('touchend', () => { dragging = false; });
+
+// ── Init ───────────────────────────────────────────────────────────────────
+syncUI();
+applyPreset(30, 'lr'); // default to Front L/R on the front wall
+</script>
+</body>
+</html>
